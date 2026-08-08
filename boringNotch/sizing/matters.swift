@@ -14,7 +14,23 @@ let batterySneakSize: CGSize = .init(width: 160, height: 1)
 
 let shadowPadding: CGFloat = 20
 let openNotchSize: CGSize = .init(width: 640, height: 190)
-let windowSize: CGSize = .init(width: openNotchSize.width, height: openNotchSize.height + shadowPadding)
+
+/// Search needs more vertical room than the other tabs: at 190pt only about two
+/// result rows clear the header and the search field.
+let searchNotchSize: CGSize = .init(width: 640, height: 310)
+
+/// The mirror wants room too — at 190pt a 16:9 preview is barely taller than
+/// the album art it replaced.
+let mirrorNotchSize: CGSize = .init(width: 640, height: 320)
+
+/// The panel is created once at a fixed size and never resized — opening the
+/// notch is a SwiftUI animation inside it. So the window has to be tall enough
+/// for the *tallest* state, and the surplus stays transparent the rest of the
+/// time. The notch content is top-anchored, so that surplus hangs below,
+/// invisible and outside the clipped notch shape.
+let windowSize: CGSize = .init(width: openNotchSize.width,
+                               height: max(openNotchSize.height,
+                                           max(searchNotchSize.height, mirrorNotchSize.height)) + shadowPadding)
 let cornerRadiusInsets: (opened: (top: CGFloat, bottom: CGFloat), closed: (top: CGFloat, bottom: CGFloat)) = (opened: (top: 19, bottom: 24), closed: (top: 6, bottom: 14))
 
 enum MusicPlayerImageSizes {

@@ -20,6 +20,9 @@ struct ContentView: View {
 
     @ObservedObject var coordinator = BoringViewCoordinator.shared
     @ObservedObject var musicManager = MusicManager.shared
+    // The live-activity gate reads this manager's status; without observing
+    // it, lyrics arriving after launch never redraw the closed notch.
+    @ObservedObject var lyricsManager = LyricsManager.shared
     @ObservedObject var batteryModel = BatteryStatusViewModel.shared
     @ObservedObject var brightnessManager = BrightnessManager.shared
     @ObservedObject var volumeManager = VolumeManager.shared
@@ -36,6 +39,12 @@ struct ContentView: View {
     @Default(.useMusicVisualizer) var useMusicVisualizer
 
     @Default(.showNotHumanFace) var showNotHumanFace
+
+    // Read through the property wrapper, not `Defaults[...]`: the subscript
+    // returns a value without subscribing, so toggling these in Settings left
+    // the notch unchanged until something else forced a redraw.
+    @Default(.enableLyrics) var enableLyrics
+    @Default(.showLyricsInLiveActivity) var showLyricsInLiveActivity
 
     // Shared interactive spring for movement/resizing to avoid conflicting animations
     private let animationSpring = Animation.interactiveSpring(response: 0.38, dampingFraction: 0.8, blendDuration: 0)
@@ -56,6 +65,27 @@ struct ContentView: View {
                 ? cornerRadiusInsets.opened.bottom
                 : cornerRadiusInsets.closed.bottom
         )
+    }
+
+    /// Whether the compact lyric strip should hang below the closed notch.
+    /// Requires lyrics that actually resolved with timings — a missing sheet
+    /// means no strip at all, rather than an empty bar.
+    private var showsCompactLyric: Bool {
+        enableLyrics
+            && showLyricsInLiveActivity
+            && lyricsManager.status == .synced
+            && musicManager.isPlaying
+            && !vm.hideOnClosed
+    }
+
+    /// Exact width of the closed live-activity row. Both it and the lyric
+    /// strip below are pinned to this, so neither can widen the parent VStack
+    /// and drag the notch cutout off screen centre.
+    private var liveActivityWidth: CGFloat {
+        let side = max(0, vm.effectiveClosedNotchHeight - 12)
+        let middle = vm.closedNotchSize.width - cornerRadiusInsets.closed.top
+        let gaps: CGFloat = 16   // two 8pt HStack gaps
+        return side * 2 + middle + gaps
     }
 
     private var computedChinWidth: CGFloat {
@@ -100,7 +130,7 @@ struct ContentView: View {
                         : cornerRadiusInsets.closed.bottom
                     )
                     .padding([.horizontal, .bottom], vm.notchState == .open ? 12 : 0)
-                    .background(.black)
+                    .background { NotchAmbientBackground() }
                     .clipShape(currentNotchShape)
                     .overlay(alignment: .top) {
                         Rectangle()
@@ -126,6 +156,7 @@ struct ContentView: View {
                         return view
                             .animation(vm.notchState == .open ? openAnimation : closeAnimation, value: vm.notchState)
                             .animation(.smooth, value: gestureProgress)
+                            .animation(.spring(response: 0.36, dampingFraction: 0.84), value: showsCompactLyric)
                     }
                     .contentShape(Rectangle())
                     .onHover { hovering in
@@ -201,6 +232,9 @@ struct ContentView: View {
                         .frame(width: computedChinWidth, height: vm.chinHeight)
                 }
             }
+        }
+        .overlay(alignment: .top) {
+            GestureOverlayView()
         }
         .padding(.bottom, 8)
         .frame(maxWidth: windowSize.width, maxHeight: windowSize.height, alignment: .top)
@@ -342,6 +376,16 @@ struct ContentView: View {
                       .fixedSize()
               }
               .zIndex(2)
+
+            // One line of lyrics hanging below the closed notch, like the panel
+            // is cracked open just far enough to read it. Never shown when
+            // there's nothing to say — no sheet, no timings, or paused.
+            if vm.notchState == .closed && showsCompactLyric {
+                CompactLyricStrip(width: liveActivityWidth)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .zIndex(1)
+            }
+
             if vm.notchState == .open {
                 VStack {
                     switch coordinator.currentView {
@@ -349,6 +393,12 @@ struct ContentView: View {
                         NotchHomeView(albumArtNamespace: albumArtNamespace)
                     case .shelf:
                         ShelfView()
+                    case .lyrics:
+                        LyricsView()
+                    case .search:
+                        SpotifySearchView()
+                    case .mirror:
+                        MirrorView()
                     }
                 }
                 .transition(
@@ -387,7 +437,9 @@ struct ContentView: View {
 
     @ViewBuilder
     func MusicLiveActivity() -> some View {
-        HStack {
+        // Spacing pinned rather than left to the default, because
+        // `liveActivityWidth` assumes it.
+        HStack(spacing: 8) {
             Image(nsImage: musicManager.albumArt)
                 .resizable()
                 .clipped()
@@ -481,6 +533,7 @@ struct ContentView: View {
             )
         }
         .frame(
+            width: liveActivityWidth,
             height: vm.effectiveClosedNotchHeight,
             alignment: .center
         )
@@ -582,8 +635,19 @@ struct ContentView: View {
         }
     }
 
+    /// Tabs whose whole body is a scroll view. A two-finger scroll there is
+    /// indistinguishable from the swipe-up-to-close pan, and closing the notch
+    /// mid-read is never what was meant — the same reason the calendar is
+    /// already excluded below.
+    private var currentTabOwnsScrolling: Bool {
+        coordinator.currentView == .lyrics || coordinator.currentView == .search
+    }
+
     private func handleUpGesture(translation: CGFloat, phase: NSEvent.Phase) {
-        guard vm.notchState == .open && !vm.isHoveringCalendar else { return }
+        guard vm.notchState == .open,
+              !vm.isHoveringCalendar,
+              !currentTabOwnsScrolling
+        else { return }
 
         withAnimation(animationSpring) {
             gestureProgress = (translation / Defaults[.gestureSensitivity]) * -20

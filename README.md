@@ -1,3 +1,20 @@
+> ### Gradia — a fork of [boring.notch](https://github.com/TheBoredTeam/boring.notch)
+>
+> This repository is a personal fork of **boring.notch** by [TheBoredTeam](https://github.com/TheBoredTeam),
+> rebranded as **Gradia** and extended with time-synced lyrics, an album-colour
+> background, hand-gesture playback control, in-notch Spotify search and a
+> full-size mirror tab.
+>
+> All original work and credit belong to TheBoredTeam. Like the original, this
+> fork is licensed under **GPL-3.0** — see [LICENSE](./LICENSE).
+>
+> Auto-update is intentionally disabled here: the upstream appcast would replace
+> this build with stock boring.notch.
+>
+> The upstream README follows.
+
+---
+
 <h1 align="center">
   <br>
   <a href="http://theboring.name"><img src="https://framerusercontent.com/images/RFK4vs0kn8pRMuOO58JeyoemXA.png?scale-down-to=256" alt="Boring Notch" width="150"></a>

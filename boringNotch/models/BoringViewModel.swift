@@ -26,7 +26,12 @@ class BoringViewModel: NSObject, ObservableObject {
     @Published var anyDropZoneTargeting: Bool = false
     var cancellables: Set<AnyCancellable> = []
     
-    @Published var hideOnClosed: Bool = true
+    /// Starts visible. Upstream starts this `true`, which hides the notch until
+    /// the fullscreen pipeline emits — and if `screenUUID` never resolves, that
+    /// never happens and the closed notch stays permanently empty (album art,
+    /// spectrum and all, since `effectiveClosedNotchHeight` collapses to 0).
+    /// Defaulting to shown fails visibly instead of silently.
+    @Published var hideOnClosed: Bool = false
 
     @Published var edgeAutoOpenActive: Bool = false
     @Published var isHoveringCalendar: Bool = false
@@ -190,11 +195,29 @@ class BoringViewModel: NSObject, ObservableObject {
     }
 
     func open() {
-        self.notchSize = openNotchSize
+        self.notchSize = Self.openSize(for: coordinator.currentView)
         self.notchState = .open
         
         // Force music information update when notch is opened
         MusicManager.shared.forceUpdate()
+    }
+
+    /// Height depends on which tab is showing; call after switching tabs.
+    func refreshOpenSize() {
+        guard notchState == .open else { return }
+        let target = Self.openSize(for: coordinator.currentView)
+        guard target != notchSize else { return }
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+            self.notchSize = target
+        }
+    }
+
+    static func openSize(for view: NotchViews) -> CGSize {
+        switch view {
+        case .search: return searchNotchSize
+        case .mirror: return mirrorNotchSize
+        default: return openNotchSize
+        }
     }
 
     func close() {

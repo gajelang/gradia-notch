@@ -13,10 +13,17 @@ struct BoringHeader: View {
     @ObservedObject var batteryModel = BatteryStatusViewModel.shared
     @ObservedObject var coordinator = BoringViewCoordinator.shared
     @StateObject var tvm = ShelfStateViewModel.shared
+    /// The shelf tab earns its place only once there's something on the shelf,
+    /// but the lyrics tab is useful the moment the feature is on.
+    private var shouldShowTabs: Bool {
+        let shelfTab = Defaults[.boringShelf] && (!tvm.isEmpty || coordinator.alwaysShowTabs)
+        return shelfTab || Defaults[.enableLyrics] || Defaults[.enableSpotifySearch]
+    }
+
     var body: some View {
         HStack(spacing: 0) {
             HStack {
-                if (!tvm.isEmpty || coordinator.alwaysShowTabs) && Defaults[.boringShelf] {
+                if shouldShowTabs {
                     TabSelectionView()
                 } else if vm.notchState == .open {
                     EmptyView()
@@ -43,15 +50,23 @@ struct BoringHeader: View {
                             .transition(.scale(scale: 0.8).combined(with: .opacity))
                     } else {
                         if Defaults[.showMirror] {
+                            // Opens the mirror as its own tab rather than
+                            // squeezing a preview in beside the player.
                             Button(action: {
-                                vm.toggleCameraPreview()
+                                withAnimation(.smooth) {
+                                    coordinator.currentView =
+                                        coordinator.currentView == .mirror ? .home : .mirror
+                                }
+                                vm.refreshOpenSize()
                             }) {
                                 Capsule()
-                                    .fill(.black)
+                                    .fill(coordinator.currentView == .mirror
+                                          ? Color(nsColor: .secondarySystemFill) : .clear)
                                     .frame(width: 30, height: 30)
                                     .overlay {
                                         Image(systemName: "web.camera")
-                                            .foregroundColor(.white)
+                                            .foregroundColor(
+                                                coordinator.currentView == .mirror ? .white : .gray)
                                             .padding()
                                             .imageScale(.medium)
                                     }
@@ -66,11 +81,12 @@ struct BoringHeader: View {
                                 
                             }) {
                                 Capsule()
-                                    .fill(.black)
+                                    .fill(.clear)
                                     .frame(width: 30, height: 30)
+                                    .contentShape(Capsule())
                                     .overlay {
                                         Image(systemName: "gear")
-                                            .foregroundColor(.white)
+                                            .foregroundColor(.gray)
                                             .padding()
                                             .imageScale(.medium)
                                     }

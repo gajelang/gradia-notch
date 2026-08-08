@@ -7,14 +7,13 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
-	<key>SUEnableDownloaderService</key>
-	<true/>
-	<key>SUEnableInstallerLauncherService</key>
-	<true/>
-	<key>SUFeedURL</key>
-	<string>https://TheBoredTeam.github.io/boring.notch/appcast.xml</string>
-	<key>SUPublicEDKey</key>
-	<string>B1Y47t8C/v8ImurYA+9arEsuCrpxwJSviekiflMElbI=</string>
+	<!-- Sparkle is intentionally left unconfigured in this fork: the upstream
+	     appcast (TheBoredTeam) would replace Gradia with stock boring.notch.
+	     To ship your own updates, restore SUFeedURL + SUPublicEDKey with your
+	     own appcast and EdDSA key, and flip `startingUpdater` back to true in
+	     boringNotchApp.swift. -->
+	<key>SUEnableAutomaticChecks</key>
+	<false/>
 	<key>UTImportedTypeDeclarations</key>
 	<array>
 		<dict/>

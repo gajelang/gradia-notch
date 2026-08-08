@@ -4,6 +4,14 @@
 <dict>
 	<key>com.apple.security.app-sandbox</key>
 	<true/>
+	<!-- MediaRemoteAdapter.framework ships prebuilt and is signed separately
+	     from the app. Under the hardened runtime, library validation treats
+	     every ad-hoc signature as its own identity, so a Release build refuses
+	     to load it ("different Team IDs") and dyld aborts at launch. A real
+	     Developer ID would sign app and framework under one team and make this
+	     unnecessary; without one, validation has to be relaxed. -->
+	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
 	<key>com.apple.security.automation.apple-events</key>
 	<true/>
 	<key>com.apple.security.device.camera</key>

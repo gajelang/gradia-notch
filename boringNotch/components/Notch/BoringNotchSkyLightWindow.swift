@@ -109,6 +109,56 @@ class BoringNotchSkyLightWindow: NSPanel {
     
     private var observers: Set<AnyCancellable> = []
     
-    override var canBecomeKey: Bool { false }
+    // Opened only while the search field is on screen; see NotchKeyboardFocus.
+    override var canBecomeKey: Bool { NotchKeyboardFocus.shared.isActive }
     override var canBecomeMain: Bool { false }
+}
+
+/// Gates keyboard focus for the notch panels.
+///
+/// The notch normally refuses to become key: it sits above the menu bar and
+/// follows the pointer, so accepting focus would yank the caret out of whatever
+/// the user is typing in. Search needs a real text field though, and the panels
+/// carry `.nonactivatingPanel`, which lets them take key status *without*
+/// activating the app — the same trick Spotlight uses. So focus is opened only
+/// while search is on screen, and closed again the moment it leaves.
+@MainActor
+final class NotchKeyboardFocus {
+    static let shared = NotchKeyboardFocus()
+    private init() {}
+
+    private(set) var isActive = false
+
+    /// Whoever had focus before the notch borrowed it. Taking key status makes
+    /// Gradia frontmost, so anything asking "what was the user in?" after that
+    /// point gets Gradia — useless for handing focus back.
+    private(set) var appBeforeFocus: NSRunningApplication?
+
+    func begin() {
+        guard !isActive else { return }
+        appBeforeFocus = NSWorkspace.shared.frontmostApplication
+        isActive = true
+        // The panels cache nothing, but AppKit needs a nudge to re-ask.
+        for window in NSApp.windows where window is NSPanel {
+            window.makeKeyAndOrderFront(nil)
+        }
+    }
+
+    func end() {
+        guard isActive else { return }
+        isActive = false
+
+        // `resignKey()` only posts the notification — it does not relinquish
+        // key status, so the panel stayed key after leaving Search and kept
+        // swallowing keystrokes. Handing focus back to the app it was borrowed
+        // from is what actually releases it.
+        if let previous = appBeforeFocus,
+           !previous.isTerminated,
+           previous.bundleIdentifier != Bundle.main.bundleIdentifier {
+            previous.activate()
+        }
+        // No `NSApp.hide` fallback: this app is LSUIElement and the notch is
+        // its only window, so hiding the app would hide the notch.
+        appBeforeFocus = nil
+    }
 }

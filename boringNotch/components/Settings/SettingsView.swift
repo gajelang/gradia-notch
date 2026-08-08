@@ -600,6 +600,10 @@ struct Media: View {
     @Default(.sneakPeekStyles) var sneakPeekStyles
 
     @Default(.enableLyrics) var enableLyrics
+    @Default(.lyricsOffset) var lyricsOffset
+    @Default(.showLyricsInLiveActivity) var showLyricsInLiveActivity
+    @Default(.enableHandGestures) var enableHandGestures
+    @Default(.enableSpotifySearch) var enableSpotifySearch
 
     var body: some View {
         Form {
@@ -679,18 +683,112 @@ struct Media: View {
             
             Section {
                 MusicSlotConfigurationView()
-                Defaults.Toggle(key: .enableLyrics) {
-                    HStack {
-                        Text("Show lyrics below artist name")
-                        customBadge(text: "Beta")
-                    }
-                }
             } header: {
                 Text("Media controls")
             }  footer: {
                 Text("Customize which controls appear in the music player. Volume expands when active.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Defaults.Toggle(key: .enableSpotifySearch) {
+                    Text("Spotify search tab")
+                }
+                if enableSpotifySearch {
+                    SpotifyCredentialsRow()
+                }
+            } header: {
+                HStack {
+                    Text("Spotify search")
+                    customBadge(text: "Beta")
+                }
+            } footer: {
+                Text("Spotify's AppleScript interface has no search command, so searching needs a Web API key. Playback still goes through the desktop app, so a Premium account isn't required. Without a key the tab still works — it hands your query to the Spotify app instead.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Defaults.Toggle(key: .albumAmbientBackground) {
+                    Text("Album colour background")
+                }
+            } header: {
+                Text("Appearance")
+            } footer: {
+                Text("Fills the opened notch with a gradient drawn from the album art. Colours are darkened automatically so white text keeps a 4.5:1 contrast ratio, whatever the cover looks like.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Defaults.Toggle(key: .enableHandGestures) {
+                    Text("Control playback with hand gestures")
+                }
+                Defaults.Toggle(key: .handGesturesOnlyWhilePlaying) {
+                    Text("Only watch while something is playing")
+                }
+                .disabled(!enableHandGestures)
+                if enableHandGestures {
+                    GestureStatusRow()
+                }
+            } header: {
+                HStack {
+                    Text("Hand gestures")
+                    customBadge(text: "Beta")
+                }
+            } footer: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Hold a pose for half a second: one finger for the next track, two for the previous, a closed fist to play or pause. Counting fingers rather than reading a wave means nothing fires while you reach for the keyboard, and there is no left/right to get backwards. Recognition runs entirely on-device — no video leaves your Mac and nothing is recorded.")
+                    Text("Uses the camera, so it drains battery while active. Leaving \"only watch while something is playing\" on keeps it asleep the rest of the time.")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Defaults.Toggle(key: .enableLyrics) {
+                    Text("Enable lyrics")
+                }
+                Defaults.Toggle(key: .showInlineLyrics) {
+                    Text("Also show the current line under the artist name")
+                }
+                .disabled(!enableLyrics)
+
+                Defaults.Toggle(key: .showLyricsInLiveActivity) {
+                    Text("Show the current line under the closed notch")
+                }
+                .disabled(!enableLyrics)
+
+
+                HStack {
+                    Stepper(value: $lyricsOffset, in: -5...5, step: 0.25) {
+                        HStack {
+                            Text("Timing offset")
+                            Spacer()
+                            Text(lyricsOffset == 0
+                                 ? "In sync"
+                                 : String(format: "%+.2f seconds", lyricsOffset))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    Button("Reset") { lyricsOffset = 0 }
+                        .disabled(lyricsOffset == 0)
+                }
+                .disabled(!enableLyrics)
+            } header: {
+                HStack {
+                    Text("Lyrics")
+                    customBadge(text: "Beta")
+                }
+            } footer: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Lyrics come from LRCLIB, a free community database. A \"Lyrics\" tab appears in the notch when this is on; click any line to jump to it.")
+                    Text("The line under the closed notch appears only while music plays and a timed sheet was found, and disappears during instrumental breaks.")
+                    Text("Raise the offset if lyrics run behind the music, lower it if they run ahead.")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
         }
         .accentColor(.effectiveAccent)
@@ -1796,4 +1894,121 @@ func warningBadge(_ text: String, _ description: String) -> some View {
 
 #Preview {
     HUD()
+}
+
+// MARK: - Hand gesture status
+
+/// Live readout of what the recogniser is doing. Turning the feature on and
+/// seeing nothing happen is otherwise impossible to diagnose from the UI.
+struct GestureStatusRow: View {
+    @ObservedObject private var gestures = GestureManager.shared
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 7) {
+                Circle()
+                    .fill(indicatorColor)
+                    .frame(width: 7, height: 7)
+                Text(gestures.status.message)
+                    .font(.callout)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer()
+                if gestures.status == .noCameraAccess {
+                    Button("Open Settings") {
+                        GestureManager.shared.requestCameraAccess()
+                    }
+                }
+            }
+
+            // Only meaningful while the camera runs: proves the recogniser can
+            // actually see a hand, separating "camera off" from "gesture missed".
+            if gestures.isRunning {
+                HStack(spacing: 7) {
+                    Image(systemName: gestures.handDetected ? "hand.raised.fill" : "hand.raised.slash")
+                        .foregroundStyle(gestures.handDetected ? Color.green : .secondary)
+                    Text(gestures.handDetected
+                         ? "Hand detected — ☝️ next, ✌️ previous, ✊ play/pause"
+                         : "No hand in view")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .animation(.easeInOut(duration: 0.15), value: gestures.handDetected)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private var indicatorColor: Color {
+        switch gestures.status {
+        case .watching: return .green
+        case .waitingForPlayback: return .yellow
+        case .off: return .secondary
+        case .noCameraAccess, .noCamera: return .red
+        }
+    }
+}
+
+// MARK: - Spotify credentials
+
+/// Client ID / Secret entry. Both are written straight to the Keychain — never
+/// to preferences, which are a plaintext plist inside the container.
+struct SpotifyCredentialsRow: View {
+    @State private var clientID: String = SpotifyCredentials.clientID ?? ""
+    @State private var clientSecret: String = SpotifyCredentials.clientSecret ?? ""
+    @State private var saved = false
+    @State private var saveFailed = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            LabeledContent("Client ID") {
+                TextField("", text: $clientID, prompt: Text("from developer.spotify.com"))
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: 280)
+            }
+            LabeledContent("Client Secret") {
+                SecureField("", text: $clientSecret, prompt: Text("stored in your Keychain"))
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: 280)
+            }
+
+            HStack(spacing: 8) {
+                Button("Save") {
+                    let id = clientID.trimmingCharacters(in: .whitespaces)
+                    let secret = clientSecret.trimmingCharacters(in: .whitespaces)
+                    SpotifyCredentials.clientID = id
+                    SpotifyCredentials.clientSecret = secret
+                    // A cached token from the old pair would outlive the change.
+                    SpotifySearchService.shared.invalidateToken()
+                    SpotifySearchService.shared.refreshCredentialState()
+                    // Read back rather than assume: a Keychain that refuses the
+                    // write would otherwise leave a green tick over nothing.
+                    saved = SpotifyCredentials.verifyStored(id: id, secret: secret)
+                    saveFailed = !saved
+                }
+                .disabled(clientID.isEmpty || clientSecret.isEmpty)
+
+                Button("Clear") {
+                    SpotifyCredentials.clear()
+                    SpotifySearchService.shared.invalidateToken()
+                    clientID = ""; clientSecret = ""; saved = false
+                }
+                .disabled(!SpotifyCredentials.isConfigured)
+
+                Link("Create a key", destination: URL(string: "https://developer.spotify.com/dashboard")!)
+                    .font(.caption)
+
+                if saved {
+                    Label("Saved", systemImage: "checkmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                } else if saveFailed {
+                    Label("Keychain refused the write", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            }
+        }
+        .onChange(of: clientID) { _, _ in saved = false; saveFailed = false }
+        .onChange(of: clientSecret) { _, _ in saved = false; saveFailed = false }
+    }
 }

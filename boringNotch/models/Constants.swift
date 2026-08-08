@@ -129,6 +129,25 @@ extension Defaults.Keys {
     static let waitInterval = Key<Double>("waitInterval", default: 3)
     static let showShuffleAndRepeat = Key<Bool>("showShuffleAndRepeat", default: false)
     static let enableLyrics = Key<Bool>("enableLyrics", default: false)
+    /// Seconds added to playback position before picking a lyric line.
+    /// Positive values pull lyrics earlier, negative push them later.
+    static let lyricsOffset = Key<Double>("lyricsOffset", default: 0)
+    /// Compact single line under the artist name, shown alongside the tab.
+    static let showInlineLyrics = Key<Bool>("showInlineLyrics", default: true)
+
+    /// Fills the opened notch with a gradient built from the album art.
+    static let albumAmbientBackground = Key<Bool>("albumAmbientBackground", default: true)
+
+    /// Hangs a single lyric line beneath the closed notch while music plays.
+    static let showLyricsInLiveActivity = Key<Bool>("showLyricsInLiveActivity", default: false)
+
+    /// Adds a Search tab that queries the Spotify catalogue.
+    static let enableSpotifySearch = Key<Bool>("enableSpotifySearch", default: false)
+
+    // MARK: Hand gestures
+    static let enableHandGestures = Key<Bool>("enableHandGestures", default: false)
+    /// Keeps the camera off unless something is actually playing.
+    static let handGesturesOnlyWhilePlaying = Key<Bool>("handGesturesOnlyWhilePlaying", default: true)
     static let musicControlSlots = Key<[MusicControlButton]>(
         "musicControlSlots",
         default: MusicControlButton.defaultLayout
